@@ -1,6 +1,6 @@
 {
   "name": "@civilization/dsh-obsidian",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Obsidian knowledge base integration with vault auto-detection, graph indexing, live note sync, and agent tools for DeepSeek Harness.",
   "type": "module",
   "main": "lib/index.js",
