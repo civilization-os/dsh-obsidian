@@ -59,15 +59,9 @@ function ObsidianPanel(): JSX.Element {
   const [mocs, setMocs] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<any[]>([])
-
-  // 结构化 Capture 状态
-  const [captureCategory, setCaptureCategory] = useState<'Work' | 'Ideas'>('Work')
-  const [captureEntry, setCaptureEntry] = useState('')
-  const [captureKnowledge, setCaptureKnowledge] = useState('')
-  const [captureFeedback, setCaptureFeedback] = useState('')
-  const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const toastTimer = useRef<number | null>(null)
+
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
@@ -137,39 +131,6 @@ function ObsidianPanel(): JSX.Element {
     showToast(ok ? `已引用 ${text}` : `已复制 ${text}`)
     if (!ok) {
       try { navigator.clipboard.writeText(text) } catch {}
-    }
-  }
-
-  const handleCapture = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!captureEntry.trim()) return
-    setLoading(true)
-    try {
-      const knowledgeList = captureKnowledge.trim()
-        ? captureKnowledge.split(/[,，\n]/).map(s => s.trim()).filter(Boolean)
-        : undefined
-
-      const res = await fetch('/dsh-obsidian/api/capture', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          entry: captureEntry.trim(),
-          category: captureCategory,
-          generatedKnowledge: captureCategory === 'Work' ? knowledgeList : undefined,
-          ideas: captureCategory === 'Ideas' ? knowledgeList : undefined,
-        }),
-      })
-      if (res.ok) {
-        setCaptureFeedback('已成功沉淀至今日日志并自动建链！')
-        setCaptureEntry('')
-        setCaptureKnowledge('')
-        setTimeout(() => setCaptureFeedback(''), 3000)
-        fetchStatus()
-      }
-    } catch {
-      setCaptureFeedback('记录失败，请检查网络')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -272,68 +233,6 @@ function ObsidianPanel(): JSX.Element {
           </div>
         </section>
       )}
-
-      {/* ⚡ 今日日志孵化入口（拒绝流水账） */}
-      <section className="dsh-obsidian-card">
-        <div className="dsh-obsidian-card-header">
-          <div className="dsh-obsidian-card-title">
-            <span className="dsh-obsidian-icon-prefix">⚡</span>
-            <span>今日日志孵化入口（拒绝流水账）</span>
-          </div>
-        </div>
-
-        {/* 分段模式切换 */}
-        <div className="dsh-obsidian-seg">
-          <button
-            type="button"
-            className={`dsh-obsidian-seg-btn ${captureCategory === 'Work' ? 'is-active' : ''}`}
-            onClick={() => setCaptureCategory('Work')}
-          >
-            <span>🛠️</span> Work (工作实战)
-          </button>
-          <button
-            type="button"
-            className={`dsh-obsidian-seg-btn ${captureCategory === 'Ideas' ? 'is-active' : ''}`}
-            onClick={() => setCaptureCategory('Ideas')}
-          >
-            <span>💡</span> Ideas (灵感思考)
-          </button>
-        </div>
-
-        <form onSubmit={handleCapture} className="dsh-obsidian-capture-form">
-          <div className="dsh-obsidian-input-wrap">
-            <input
-              className="dsh-obsidian-input"
-              placeholder={captureCategory === 'Work' ? '解决的问题/任务简述（如: 解决 Kafka Direct Memory OOM）...' : '灵感构想（如: AI Agent Memory 统一架构）...'}
-              value={captureEntry}
-              onChange={(e) => setCaptureEntry(e.target.value)}
-              disabled={loading}
-            />
-          </div>
-
-          <div className="dsh-obsidian-input-wrap">
-            <input
-              className="dsh-obsidian-input-sub"
-              placeholder={captureCategory === 'Work' ? '提炼产生的原子知识（逗号分隔，如: Kafka Direct Memory, JSON Streaming Parse）' : '衍生的课题设计（如: Agent Memory Architecture）'}
-              value={captureKnowledge}
-              onChange={(e) => setCaptureKnowledge(e.target.value)}
-              disabled={loading}
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="dsh-obsidian-btn-primary"
-            disabled={loading || !captureEntry.trim()}
-          >
-            {loading ? '沉淀中...' : '沉淀至 Daily 并建链 ↵'}
-          </button>
-        </form>
-
-        {captureFeedback && (
-          <div className="dsh-obsidian-feedback">{captureFeedback}</div>
-        )}
-      </section>
 
       {/* 📄 当前正在查看的笔记 */}
       {activeNote?.active ? (
@@ -882,51 +781,6 @@ function GlobalObsidianStyle(): JSX.Element {
   font-weight: 500;
 }
 
-/* 分段切换按钮（Segmented Control） */
-.dsh-obsidian-seg {
-  display: flex;
-  padding: 2px;
-  gap: 2px;
-  border-radius: 8px;
-  background: var(--dsw-alias-interactive-bg-hover, rgba(100, 120, 150, 0.08));
-  border: 1px solid var(--dsw-alias-border-l1, rgba(118, 137, 166, 0.16));
-}
-.dsh-obsidian-seg-btn {
-  flex: 1;
-  padding: 6px 12px;
-  font-size: 11.5px;
-  font-weight: 500;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary, #6f7f9b);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
-.dsh-obsidian-seg-btn:hover {
-  color: var(--dsw-alias-label-primary, inherit);
-}
-.dsh-obsidian-seg-btn.is-active {
-  background: var(--dsw-alias-bg-layer-3, #ffffff);
-  color: var(--dsw-alias-brand-primary, #4b70e2);
-  font-weight: 600;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-
-/* Daily Capture 表单 */
-.dsh-obsidian-capture-form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.dsh-obsidian-input-wrap {
-  width: 100%;
-}
-
 /* 标准输入框 */
 .dsh-obsidian-input {
   box-sizing: border-box;
@@ -949,60 +803,6 @@ function GlobalObsidianStyle(): JSX.Element {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-brand-primary, #4b70e2) 18%, transparent);
 }
 
-/* 次级输入框 */
-.dsh-obsidian-input-sub {
-  box-sizing: border-box;
-  width: 100%;
-  padding: 6px 10px;
-  font-size: 11.5px;
-  line-height: 1.4;
-  border-radius: 7px;
-  border: 1px dashed var(--dsw-alias-border-l2, rgba(118, 137, 166, 0.28));
-  background: var(--dsw-alias-interactive-bg-hover, rgba(100, 120, 150, 0.04));
-  color: var(--dsw-alias-label-primary, inherit);
-  outline: none;
-  transition: all 0.15s ease;
-}
-.dsh-obsidian-input-sub::placeholder {
-  color: var(--dsw-alias-label-tertiary, #9aa5b5);
-}
-.dsh-obsidian-input-sub:focus {
-  background: var(--dsw-alias-bg-layer-3, #ffffff);
-  border-style: solid;
-  border-color: var(--dsw-alias-brand-primary, #4b70e2);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-brand-primary, #4b70e2) 18%, transparent);
-}
-
-/* 主操作按钮 */
-.dsh-obsidian-btn-primary {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  padding: 7px 12px;
-  font-size: 12px;
-  font-weight: 550;
-  border-radius: 7px;
-  border: none;
-  background: var(--dsw-alias-brand-primary, #4b70e2);
-  color: #ffffff;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-.dsh-obsidian-btn-primary:hover:not(:disabled) {
-  opacity: 0.92;
-  transform: translateY(-0.5px);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
-}
-.dsh-obsidian-btn-primary:active:not(:disabled) {
-  transform: translateY(0);
-}
-.dsh-obsidian-btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 
 /* 次级/辅助按钮 */
 .dsh-obsidian-btn-secondary {
@@ -1062,16 +862,6 @@ function GlobalObsidianStyle(): JSX.Element {
   background: color-mix(in srgb, var(--dsw-alias-brand-primary, #4b70e2) 12%, transparent);
 }
 
-/* 反馈提示 */
-.dsh-obsidian-feedback {
-  font-size: 11px;
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.2);
-  padding: 4px 8px;
-  border-radius: 6px;
-  animation: fadeIn 0.2s ease-in;
-}
 
 /* 当前活跃笔记面板 */
 .dsh-obsidian-active-body {
