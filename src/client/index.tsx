@@ -21,7 +21,7 @@ export function apply(ctx: Context): void {
     guide: [{
       order: 205,
       title: () => 'Obsidian',
-      description: () => 'Obsidian 知识库与双链看板',
+      description: () => 'Obsidian 知识库与 MOC 地图看板',
       icon: ObsidianIcon,
     }],
   }), 'dsh-obsidian: tab definition')
@@ -49,13 +49,17 @@ function ObsidianTabTitle(): JSX.Element {
 function ObsidianPanel(): JSX.Element {
   const [status, setStatus] = useState<any>(null)
   const [activeNote, setActiveNote] = useState<any>(null)
+  const [mocs, setMocs] = useState<any[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<any[]>([])
-  const [captureText, setCaptureText] = useState('')
+
+  // 结构化 Capture 状态
+  const [captureCategory, setCaptureCategory] = useState<'Work' | 'Ideas'>('Work')
+  const [captureEntry, setCaptureEntry] = useState('')
+  const [captureKnowledge, setCaptureKnowledge] = useState('')
   const [captureFeedback, setCaptureFeedback] = useState('')
   const [loading, setLoading] = useState(false)
 
-  // 轮询或加载状态
   const fetchStatus = async () => {
     try {
       const res = await fetch('/dsh-obsidian/api/status')
@@ -76,12 +80,24 @@ function ObsidianPanel(): JSX.Element {
     } catch {}
   }
 
+  const fetchMocs = async () => {
+    try {
+      const res = await fetch('/dsh-obsidian/api/mocs')
+      if (res.ok) {
+        const data = await res.json()
+        setMocs(data.mocs || [])
+      }
+    } catch {}
+  }
+
   useEffect(() => {
     fetchStatus()
     fetchActive()
+    fetchMocs()
     const timer = setInterval(() => {
       fetchStatus()
       fetchActive()
+      fetchMocs()
     }, 4000)
     return () => clearInterval(timer)
   }, [])
@@ -98,17 +114,27 @@ function ObsidianPanel(): JSX.Element {
 
   const handleCapture = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!captureText.trim()) return
+    if (!captureEntry.trim()) return
     setLoading(true)
     try {
+      const knowledgeList = captureKnowledge.trim()
+        ? captureKnowledge.split(/[,，\n]/).map(s => s.trim()).filter(Boolean)
+        : undefined
+
       const res = await fetch('/dsh-obsidian/api/capture', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: captureText.trim() }),
+        body: JSON.stringify({
+          entry: captureEntry.trim(),
+          category: captureCategory,
+          generatedKnowledge: captureCategory === 'Work' ? knowledgeList : undefined,
+          ideas: captureCategory === 'Ideas' ? knowledgeList : undefined,
+        }),
       })
       if (res.ok) {
-        setCaptureFeedback('已记入今日日记！')
-        setCaptureText('')
+        setCaptureFeedback('已结构化沉淀至今日日志！')
+        setCaptureEntry('')
+        setCaptureKnowledge('')
         setTimeout(() => setCaptureFeedback(''), 2500)
         fetchStatus()
       }
@@ -144,7 +170,7 @@ function ObsidianPanel(): JSX.Element {
             <div style={styles.vaultTitle}>{status?.vaultName || 'Obsidian 知识库'}</div>
             <div style={styles.vaultSubtitle}>
               {status?.connected
-                ? `🟢 已连接 (${status.totalNotes} 篇笔记)`
+                ? `🟢 已连接 (${status.totalNotes} 笔记 / ${status.totalMocs || 0} MOC)`
                 : '⚪ 未检测到运行中的 Vault'}
             </div>
           </div>
@@ -160,17 +186,74 @@ function ObsidianPanel(): JSX.Element {
         )}
       </div>
 
-      {/* 快捷收集箱 */}
+      {/* 🗺️ MOC 语义知识地图导航 */}
+      {mocs.length > 0 && (
+        <div style={styles.card}>
+          <div style={styles.cardHeader}>
+            <span>🗺️ MOC 知识地图（导航中枢）</span>
+            <span style={styles.badgeCount}>{mocs.length} 个地图</span>
+          </div>
+          <div style={styles.mocGrid}>
+            {mocs.map((moc) => (
+              <div
+                key={moc.path}
+                style={styles.mocItem}
+                onClick={() => handleOpenObsidian(moc.path)}
+                title={`查看 ${moc.title} (关联 ${moc.totalLinks} 个节点)`}
+              >
+                <div style={styles.mocTitle}>📌 {moc.title}</div>
+                <div style={styles.mocMeta}>
+                  {moc.domain ? <span style={styles.domainTag}>{moc.domain}</span> : null}
+                  <span>{moc.totalLinks} 节点</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 结构化 Daily 孵化器输入 */}
       <div style={styles.card}>
-        <div style={styles.cardHeader}>⚡ 快速记录至今日日记</div>
+        <div style={styles.cardHeader}>
+          <span>⚡ 今日日志孵化入口（拒绝流水账）</span>
+        </div>
+
+        {/* 分类切换 */}
+        <div style={styles.categoryToggle}>
+          <button
+            type="button"
+            style={captureCategory === 'Work' ? styles.catBtnActive : styles.catBtn}
+            onClick={() => setCaptureCategory('Work')}
+          >
+            🛠️ Work (工作实战)
+          </button>
+          <button
+            type="button"
+            style={captureCategory === 'Ideas' ? styles.catBtnActive : styles.catBtn}
+            onClick={() => setCaptureCategory('Ideas')}
+          >
+            💡 Ideas (灵感思考)
+          </button>
+        </div>
+
         <form onSubmit={handleCapture} style={styles.captureForm}>
           <input
             style={styles.input}
-            placeholder="记下即时待办或灵感，回车归档..."
-            value={captureText}
-            onChange={(e) => setCaptureText(e.target.value)}
+            placeholder={captureCategory === 'Work' ? '解决的问题/任务简述...' : '灵感或架构设计构想...'}
+            value={captureEntry}
+            onChange={(e) => setCaptureEntry(e.target.value)}
             disabled={loading}
           />
+          <input
+            style={styles.inputSub}
+            placeholder={captureCategory === 'Work' ? '提炼产生的原子知识（逗号分隔，如 Kafka Direct Memory）' : '衍生的课题设计（如 Agent Memory Architecture）'}
+            value={captureKnowledge}
+            onChange={(e) => setCaptureKnowledge(e.target.value)}
+            disabled={loading}
+          />
+          <button type="submit" style={styles.btnCapture} disabled={loading || !captureEntry.trim()}>
+            {loading ? '沉淀中...' : '沉淀至 Daily 并建链 ↵'}
+          </button>
         </form>
         {captureFeedback && <div style={styles.feedback}>{captureFeedback}</div>}
       </div>
@@ -189,6 +272,19 @@ function ObsidianPanel(): JSX.Element {
           </div>
           <div style={styles.noteTitle}>{activeNote.title}</div>
           <div style={styles.notePath}>{activeNote.path}</div>
+
+          {/* YAML 属性徽标 */}
+          <div style={styles.frontmatterTags}>
+            {activeNote.frontmatter?.type && (
+              <span style={styles.attrType}>type: {activeNote.frontmatter.type}</span>
+            )}
+            {activeNote.frontmatter?.domain && (
+              <span style={styles.attrDomain}>domain: {activeNote.frontmatter.domain}</span>
+            )}
+            {activeNote.frontmatter?.status && (
+              <span style={styles.attrStatus}>status: {activeNote.frontmatter.status}</span>
+            )}
+          </div>
 
           {activeNote.tags?.length > 0 && (
             <div style={styles.tagList}>
@@ -242,10 +338,10 @@ function ObsidianPanel(): JSX.Element {
 
       {/* 知识库极速搜索 */}
       <div style={styles.card}>
-        <div style={styles.cardHeader}>🔍 知识库速查</div>
+        <div style={styles.cardHeader}>🔍 知识库检索</div>
         <input
           style={styles.input}
-          placeholder="输入关键词、双链或标签搜索..."
+          placeholder="关键词、双链或标签过滤..."
           value={searchQuery}
           onChange={(e) => handleSearch(e.target.value)}
         />
@@ -258,7 +354,9 @@ function ObsidianPanel(): JSX.Element {
                 onClick={() => handleOpenObsidian(item.path)}
               >
                 <div style={styles.resultTitle}>{item.title}</div>
-                <div style={styles.resultPath}>{item.path}</div>
+                <div style={styles.resultPath}>
+                  {item.type ? `[${item.type}] ` : ''}{item.path}
+                </div>
                 {item.snippet && <div style={styles.resultSnippet}>{item.snippet}</div>}
               </div>
             ))}
@@ -336,6 +434,72 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     color: 'var(--text-muted, #aaa)',
   },
+  badgeCount: {
+    fontSize: 10,
+    padding: '1px 5px',
+    borderRadius: 4,
+    backgroundColor: 'rgba(167, 139, 250, 0.15)',
+    color: '#c4b5fd',
+  },
+  mocGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+    gap: 6,
+  },
+  mocItem: {
+    padding: '6px 8px',
+    borderRadius: 6,
+    backgroundColor: 'rgba(124, 58, 237, 0.12)',
+    border: '1px solid rgba(139, 92, 246, 0.25)',
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
+  },
+  mocTitle: {
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#c4b5fd',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  mocMeta: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: 10,
+    color: '#94a3b8',
+  },
+  domainTag: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    padding: '1px 4px',
+    borderRadius: 3,
+  },
+  categoryToggle: {
+    display: 'flex',
+    gap: 6,
+  },
+  catBtn: {
+    flex: 1,
+    padding: '4px 6px',
+    fontSize: 11,
+    borderRadius: 5,
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'transparent',
+    color: '#94a3b8',
+    cursor: 'pointer',
+  },
+  catBtnActive: {
+    flex: 1,
+    padding: '4px 6px',
+    fontSize: 11,
+    borderRadius: 5,
+    border: '1px solid rgba(139, 92, 246, 0.5)',
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    color: '#c4b5fd',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
   noteTitle: {
     fontSize: 14,
     fontWeight: 600,
@@ -345,6 +509,32 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 11,
     color: 'var(--text-muted, #777)',
     wordBreak: 'break-all',
+  },
+  frontmatterTags: {
+    display: 'flex',
+    gap: 4,
+    flexWrap: 'wrap',
+  },
+  attrType: {
+    fontSize: 10,
+    padding: '1px 5px',
+    borderRadius: 3,
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    color: '#93c5fd',
+  },
+  attrDomain: {
+    fontSize: 10,
+    padding: '1px 5px',
+    borderRadius: 3,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    color: '#6ee7b7',
+  },
+  attrStatus: {
+    fontSize: 10,
+    padding: '1px 5px',
+    borderRadius: 3,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    color: '#fcd34d',
   },
   tagList: {
     display: 'flex',
@@ -384,6 +574,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   captureForm: {
     display: 'flex',
+    flexDirection: 'column',
     gap: 6,
   },
   input: {
@@ -396,6 +587,27 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     outline: 'none',
     boxSizing: 'border-box',
+  },
+  inputSub: {
+    width: '100%',
+    padding: '5px 10px',
+    borderRadius: 6,
+    border: '1px dashed var(--border-color, rgba(255, 255, 255, 0.1))',
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    color: '#cbd5e1',
+    fontSize: 11,
+    outline: 'none',
+    boxSizing: 'border-box',
+  },
+  btnCapture: {
+    padding: '6px 10px',
+    fontSize: 11,
+    fontWeight: 500,
+    borderRadius: 5,
+    border: 'none',
+    backgroundColor: '#7c3aed',
+    color: '#fff',
+    cursor: 'pointer',
   },
   btnSecondary: {
     padding: '4px 8px',

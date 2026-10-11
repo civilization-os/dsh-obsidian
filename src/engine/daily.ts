@@ -8,6 +8,13 @@ export interface DailyNoteConfig {
   template?: string
 }
 
+export interface DailyStructuredEntry {
+  category?: 'Work' | 'Ideas' | string
+  entry: string
+  generatedKnowledge?: string[]
+  ideas?: string[]
+}
+
 /**
  * 读取 Obsidian 官方的 Daily Note 配置
  */
@@ -30,7 +37,7 @@ export function getDailyNoteSettings(vaultPath: string, config: Config): DailyNo
 }
 
 /**
- * 格式化今天的日期字符串（基础支持 YYYY, MM, DD, ddd 等常用占位符）
+ * 格式化今天的日期字符串
  */
 export function formatCurrentDate(format: string = 'YYYY-MM-DD'): string {
   const now = new Date()
@@ -49,22 +56,18 @@ export function formatCurrentDate(format: string = 'YYYY-MM-DD'): string {
 }
 
 /**
- * 向今日日记追加内容
+ * 向今日日记追加结构化条目（拒绝流水账，作为原子知识孵化器入口）
  */
-export function appendToDailyNote(
+export function appendStructuredDailyNote(
   vaultPath: string,
-  content: string,
-  config: Config,
-  heading?: string
+  data: DailyStructuredEntry,
+  config: Config
 ): { success: boolean; filePath: string; message: string } {
   const settings = getDailyNoteSettings(vaultPath, config)
   const dateStr = formatCurrentDate(settings.format)
   const fileName = `${dateStr}.md`
   const relPath = settings.folder ? `${settings.folder}/${fileName}` : fileName
   const fullPath = join(vaultPath, relPath)
-
-  const now = new Date()
-  const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 
   try {
     mkdirSync(dirname(fullPath), { recursive: true })
@@ -73,37 +76,57 @@ export function appendToDailyNote(
     if (existsSync(fullPath)) {
       existingContent = readFileSync(fullPath, 'utf8')
     } else {
-      // 新建日记初始化模版
-      existingContent = `---\ncreated: ${dateStr}\ntags:\n  - daily-note\n---\n\n# 📅 ${dateStr} 日志\n\n`
+      // 现代规范初始模板
+      existingContent = `---\ntitle: ${dateStr}\ntype: daily\nstatus: growing\ncreated: ${dateStr}\nupdated: ${dateStr}\ntags:\n  - daily-note\n---\n\n# 📅 ${dateStr} 日志\n\n`
     }
 
+    const category = data.category || 'Work'
+    const targetHeading = `## ${category}`
+
+    // 格式化 entry
+    const lines: string[] = [data.entry.trim()]
+    if (data.generatedKnowledge && data.generatedKnowledge.length > 0) {
+      lines.push('\n- **产生知识**：')
+      for (const k of data.generatedKnowledge) {
+        const cleanK = k.replace(/^\[\[|\]\]$/g, '')
+        lines.push(`  - [[${cleanK}]]`)
+      }
+    }
+    if (data.ideas && data.ideas.length > 0) {
+      lines.push('\n- **衍生思考**：')
+      for (const idea of data.ideas) {
+        const cleanIdea = idea.replace(/^\[\[|\]\]$/g, '')
+        lines.push(`  - [[${cleanIdea}]]`)
+      }
+    }
+
+    const blockText = lines.join('\n') + '\n'
+
     let updatedContent = existingContent
+    const headingIdx = updatedContent.indexOf(targetHeading)
 
-    const entryText = content.trim().startsWith('-')
-      ? `${content.trim()}`
-      : `- [${timeStr}] ${content.trim()}`
-
-    if (heading) {
-      const targetHeading = heading.startsWith('#') ? heading : `## ${heading}`
-      const headingIdx = updatedContent.indexOf(targetHeading)
-      if (headingIdx !== -1) {
-        const nextLineIdx = updatedContent.indexOf('\n', headingIdx)
-        if (nextLineIdx !== -1) {
-          updatedContent = updatedContent.slice(0, nextLineIdx + 1) + `${entryText}\n` + updatedContent.slice(nextLineIdx + 1)
-        } else {
-          updatedContent += `\n${entryText}\n`
-        }
+    if (headingIdx !== -1) {
+      const nextLineIdx = updatedContent.indexOf('\n', headingIdx)
+      if (nextLineIdx !== -1) {
+        updatedContent = updatedContent.slice(0, nextLineIdx + 1) + `${blockText}\n` + updatedContent.slice(nextLineIdx + 1)
       } else {
-        // 未找到标题则在末尾新建标题
-        updatedContent = updatedContent.trimEnd() + `\n\n${targetHeading}\n${entryText}\n`
+        updatedContent += `\n${blockText}\n`
       }
     } else {
-      updatedContent = updatedContent.trimEnd() + `\n\n${entryText}\n`
+      updatedContent = updatedContent.trimEnd() + `\n\n${targetHeading}\n\n${blockText}\n`
     }
 
     writeFileSync(fullPath, updatedContent, 'utf8')
-    return { success: true, filePath: relPath, message: `已成功追加至 ${relPath}` }
+    return {
+      success: true,
+      filePath: relPath,
+      message: `已结构化记入 ${relPath} 的 [${category}] 板块，并沉淀双链索引。`,
+    }
   } catch (err: any) {
-    return { success: false, filePath: relPath, message: `写入日记失败: ${err?.message || String(err)}` }
+    return {
+      success: false,
+      filePath: relPath,
+      message: `写入日记失败: ${err?.message || String(err)}`,
+    }
   }
 }

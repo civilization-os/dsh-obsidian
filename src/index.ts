@@ -8,7 +8,7 @@ import { resolveActiveVault, readActiveNoteFromWorkspace } from './engine/vault.
 import { ObsidianGraph } from './engine/graph.ts'
 import { registerObsidianTools } from './tools/index.ts'
 import { buildObsidianUri, openInObsidianApp } from './bridge/uri.ts'
-import { appendToDailyNote } from './engine/daily.ts'
+import { appendStructuredDailyNote } from './engine/daily.ts'
 
 export const name = '@civilization/dsh-obsidian'
 export const inject = ['tools', 'webServer', 'skills']
@@ -115,15 +115,14 @@ export async function apply(ctx: Context, config: Config = {}): Promise<void> {
     const skillContent = await readSkillContent()
     ctx.effect(() => (ctx as any).skills?.register?.({
       name: 'obsidian-operation',
-      description: 'Inspect, search, read, patch, and manage Obsidian notes, wikilinks, daily notes, and knowledge graph.',
-      whenToUse: 'Use when interacting with the Obsidian knowledge base or querying notes and backlinks.',
+      description: 'Inspect, search, read, patch, and manage Obsidian notes with MOC and structured Frontmatter.',
+      whenToUse: 'Use when interacting with the Obsidian knowledge base or querying MOCs and backlinks.',
       source: 'bundled',
       content: skillContent,
     }))
   } catch {}
 
   if (!vaultInfo) {
-    // 未检测到 Vault 时依然允许 WebServer 返回未连接状态
     registerApiRoutes(ctx, null, null, config)
     return
   }
@@ -168,7 +167,6 @@ function registerApiRoutes(
       const url = new URL(req.url || '/', 'http://localhost')
       const pathname = url.pathname
 
-      // 允许跨域（本地开发）
       res.setHeader('Access-Control-Allow-Origin', '*')
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -189,12 +187,15 @@ function registerApiRoutes(
 
         const activeRel = readActiveNoteFromWorkspace(vaultInfo.path)
         const activeNote = activeRel ? graph.getNote(activeRel) : null
+        const mocs = graph.getMocs()
 
         return writeJson(res, 200, {
           connected: true,
           vaultName: vaultInfo.name,
           vaultPath: vaultInfo.path,
           totalNotes: graph.notes.size,
+          totalMocs: mocs.length,
+          mocs: mocs.map(m => ({ title: m.title, path: m.path, domain: m.domain, totalLinks: m.totalLinks })),
           activeNote: activeRel,
           activeNoteTitle: activeNote?.title || (activeRel ? basename(activeRel, '.md') : null),
           outlinksCount: activeNote?.outlinks.length || 0,
@@ -202,7 +203,13 @@ function registerApiRoutes(
         })
       }
 
-      // 2. 活跃笔记详情查询
+      // 2. MOC 清单查询
+      if (pathname === '/dsh-obsidian/api/mocs' && req.method === 'GET') {
+        if (!graph) return writeJson(res, 200, { mocs: [] })
+        return writeJson(res, 200, { mocs: graph.getMocs() })
+      }
+
+      // 3. 活跃笔记详情查询
       if (pathname === '/dsh-obsidian/api/active' && req.method === 'GET') {
         if (!vaultInfo || !graph) {
           return writeJson(res, 400, { error: '未连接 Vault' })
@@ -221,19 +228,23 @@ function registerApiRoutes(
           tags: note?.tags || [],
           outlinks: note?.outlinks || [],
           backlinks: note?.backlinks || [],
+          frontmatter: note?.frontmatter || {},
         })
       }
 
-      // 3. 搜索
+      // 4. 搜索（支持 type/domain/status 结构化过滤）
       if (pathname === '/dsh-obsidian/api/search' && req.method === 'GET') {
         if (!graph) return writeJson(res, 200, { results: [] })
         const q = url.searchParams.get('q') || ''
         const tag = url.searchParams.get('tag') || undefined
-        const results = graph.search(q, { tag, limit: 20 })
+        const type = (url.searchParams.get('type') as any) || undefined
+        const domain = url.searchParams.get('domain') || undefined
+        const status = (url.searchParams.get('status') as any) || undefined
+        const results = graph.search(q, { tag, type, domain, status, limit: 20 })
         return writeJson(res, 200, { results })
       }
 
-      // 4. 打开客户端
+      // 5. 打开客户端
       if (pathname === '/dsh-obsidian/api/open' && req.method === 'POST') {
         if (!vaultInfo) return writeJson(res, 400, { error: '未连接 Vault' })
         const body = await readJsonBody(req)
@@ -243,14 +254,22 @@ function registerApiRoutes(
         return writeJson(res, 200, { ok, uri })
       }
 
-      // 5. 快速记录到今日日记
+      // 6. 结构化记录到今日日记（知识孵化入口）
       if (pathname === '/dsh-obsidian/api/capture' && req.method === 'POST') {
         if (!vaultInfo) return writeJson(res, 400, { error: '未连接 Vault' })
         const body = await readJsonBody(req)
-        if (!body.content?.trim()) {
+        const entryText = body.entry || body.content
+        if (!entryText?.trim()) {
           return writeJson(res, 400, { error: '记录内容不能为空' })
         }
-        const outcome = appendToDailyNote(vaultInfo.path, body.content.trim(), config, body.heading)
+
+        const outcome = appendStructuredDailyNote(vaultInfo.path, {
+          entry: entryText.trim(),
+          category: body.category || 'Work',
+          generatedKnowledge: body.generatedKnowledge,
+          ideas: body.ideas,
+        }, config)
+
         if (graph && outcome.success) {
           graph.indexFile(outcome.filePath, join(vaultInfo.path, outcome.filePath), Date.now(), 0)
           graph.recomputeBacklinks()
