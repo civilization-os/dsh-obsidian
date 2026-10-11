@@ -20,6 +20,8 @@ export * from './engine/frontmatter.ts'
 export * from './engine/daily.ts'
 export * from './bridge/uri.ts'
 
+export interface Config extends PluginConfig {}
+
 export const Config: Schema<Config> = Schema.object({
   autoDetectVault: Schema.boolean()
     .default(true)
