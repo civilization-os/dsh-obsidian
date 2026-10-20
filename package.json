@@ -1,6 +1,6 @@
 {
   "name": "@civilization/dsh-obsidian",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Obsidian knowledge base integration with vault auto-detection, graph indexing, live note sync, and agent tools for DeepSeek Harness.",
   "type": "module",
   "main": "lib/index.js",
@@ -39,7 +39,7 @@
     "clean": "node -e \"require('node:fs').rmSync('lib',{recursive:true,force:true})\""
   },
   "dependencies": {
-    "@deepseek-ai/schemastery": "3.18.2"
+    "@deepseek-ai/schemastery": "3.18.5"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": ">=4.0.0",
@@ -47,8 +47,8 @@
     "react": ">=18.0.0"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "^4.0.2",
-    "@deepseek-ai/dsh-tools": "0.1.2-rc.1",
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
     "@types/node": "^22.20.2",
     "@types/react": "~18.3.1",
     "react": "^18.2.0",
@@ -69,4 +69,3 @@
     "registry": "https://registry.npmjs.org/"
   }
 }
-
