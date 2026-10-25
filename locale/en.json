@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Obsidian Knowledge Base",
+    "description": "Obsidian knowledge base integration with vault auto-detection, graph indexing, live note sync, and agent tools for DeepSeek Harness."
+  }
+}
