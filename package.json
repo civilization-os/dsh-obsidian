@@ -1,7 +1,7 @@
 {
   "name": "@civilization/dsh-obsidian",
   "version": "0.1.4",
-  "description": "Obsidian knowledge base integration with vault auto-detection, graph indexing, live note sync, and agent tools for DeepSeek Harness.",
+  "description": "原生联动 Obsidian 本地知识库；自动嗅探活动 Vault、活跃笔记感知、双链拓扑图谱与模型工具集。",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
