@@ -74,8 +74,8 @@ node tests/test-engine.mjs
 
 ## 🔌 Harness / Cordis 版本兼容
 
-当前版本已在 DeepSeek Harness **0.2.1-rc.2** 及 Cordis **4.0.5** 上完成全量验证：
+当前版本已在 DeepSeek Harness **0.2.1-rc.3** 及 Cordis **4.0.5** 上完成全量验证：
 - 双端构建（CJS 客户端侧边栏 + ESM Node 宿主服务）零警告编译；
-- 依赖对齐 `@deepseek-ai/schemastery: 3.18.5` 与 `@deepseek-ai/dsh-tools: 0.2.1-rc.2`；
+- 依赖对齐 `@deepseek-ai/schemastery: 3.18.5` 与 `@deepseek-ai/dsh-tools: 0.2.1-rc.3`；
 - MOC 知识图谱索引与 Vault 自动化引擎测试全部通过；
 - `peerDependencies` 支持 `@deepseek-ai/cordis: >=4.0.0` 与 `@deepseek-ai/dsh-tools: >=0.1.2-rc.1`。

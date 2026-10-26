@@ -1,6 +1,6 @@
 {
   "name": "@civilization/dsh-obsidian",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "原生联动 Obsidian 本地知识库；自动嗅探活动 Vault、活跃笔记感知、双链拓扑图谱与模型工具集。",
   "type": "module",
   "main": "lib/index.js",
@@ -52,7 +52,7 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
-    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.3",
     "@types/node": "^22.20.2",
     "@types/react": "~18.3.1",
     "react": "^18.2.0",
